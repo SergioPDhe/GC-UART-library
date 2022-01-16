@@ -12,11 +12,11 @@ GCComm::GCComm()
   UBRR0L =  (uint8_t)1; //// Sets baud rate to 1M (see datasheet)
   UCSR0A |= (1<<U2X0);  //
   
-  UCSR0C =  (1<<UCSZ00); // change frame size to 6 bits, no parity, 1 stop bit
+  UCSR0C =  (1<<UCSZ00)|(1<<UCSZ01); // change frame size to 8 bits, no parity, 1 stop bit (default value for reading GC commands)
 }
 
 
-void GCComm::InitDataLine()
+void GCComm::InitDataLine() // pin activation must happen during setup
 {
   UCSR0B = (1<<RXEN0)|(1<<TXEN0); // activate RX and TX pins
 }
@@ -32,9 +32,7 @@ void GCComm::SendPollResponse() // responds to console poll to check if a contro
   SendByte(0x03);
   SendStopBit();    // sends stop bit (duh)
 
-  FlushReceiveBuffer(); // empties RX buffer (might be necessary since 
-
-  SetFrameSize8(); // sets UART frame back to 8 (see function for details)
+  SetFrameSize8(); // flushes buffer and sets UART frame back to 8 (see function for details)
 }
 
 
@@ -44,17 +42,21 @@ void GCComm::SendOrigin() // responds to console poll for origin (See GCN commun
   
   SendByte((uint8_t)0x00);     // Sends Start, Y, X, B, A and some overhead stuff, format is usually [0,0,0,St,Y,X,B,A]
   SendByte((uint8_t)0x80);     // Sends L, R, Z and Dpad inputs, format is usually [0,0,0,St,Y,X,B,A]
+  
   SendByte((uint8_t)128);      // control stick inputs
   SendByte((uint8_t)128);
+  
   SendByte((uint8_t)128);      // c-stick inputs
   SendByte((uint8_t)128);
+  
   SendByte((uint8_t)0x00);     // analog L and R inputs
   SendByte((uint8_t)0x00);
+  
   SendByte((uint8_t)0x00);     // null bytes (expected by console)
   SendByte((uint8_t)0x00);
+  
   SendStopBit();               // stop bit
 
-  FlushReceiveBuffer(); // empties RX buffer
 
   SetFrameSize8(); // sets UART frame back to 8 (see function for details)
 }
@@ -66,10 +68,13 @@ void GCComm::SendInputs() // sends inputs to console
   
   SendByte(StYXBA);   // Sends Start, Y, X, B, A and some overhead stuff, format is usually [0,0,0,St,Y,X,B,A]
   SendByte(LRZDpad);  // Sends L, R, Z and Dpad inputs, format is usually [1,L,R,Z,Dup,Ddown,Dright,Dleft]
+  
   SendByte(ControlX); // control stick inputs
   SendByte(ControlY);
+
   SendByte(CstickX);  // c-stick inputs
   SendByte(CstickY);
+  
   SendByte(AnalogL);  // analog L and R inputs
   SendByte(AnalogR);
   SendStopBit();      // stop bit
@@ -90,16 +95,19 @@ void GCComm::ReceiveCommand()
       SetRumble(ReceiveByte()&0b00000011); // get last 2 bits of 3rd command to check for rumble
       FlushReceiveBuffer();
       SendInputs();
+      PORTB |= (1<<2);
       break;
       
     case 0x00:
       FlushReceiveBuffer();
       SendPollResponse();
+      PORTB |= (1<<4);
       break;
       
     case 0x41:
       FlushReceiveBuffer();
       SendOrigin();
+      PORTB |= (1<<3);
       break;
       
   }
@@ -146,6 +154,7 @@ inline void GCComm::SendPair(uint8_t sent)  // sends UART Byte via TX (SHOULD US
 {
   while (!(UCSR0A & (1<<UDRE0))); //wait for TX buffer to be ready to send data
   UDR0 = sent;  // send data
+  UCSR0A |= (1 << TXC0);          // write 1 to TXC0 to clear it
 }
 
 inline uint8_t GCComm::ReceivePair()  // receives UART byte via RX (SHOULD USE 8-BIT FRAME)
@@ -190,18 +199,21 @@ inline void GCComm::SendStopBit()
 
 inline void GCComm::FlushReceiveBuffer() // clear receiver buffer before changing frame size or awaiting new messages from the console
 {
+  while (!(UCSR0A & (1<<TXC0)));
   uint8_t dummy;
   while(UCSR0A & (1<<RXC0)) dummy = UDR0; // read data until no more data is in the buffer
 }
 
 inline void GCComm::SetFrameSize6() // changes UART frame size to 6 (after receiving a console command and before sending a controller message)
 {
-   //while (UCSR0A & (1<<RXC0)); // wait for receive buffer to be clear (i.e. wait for the console command to be read) not necessary due to my neurotic flushing
+   //while (UCSR0A & (1<<RXC0)); // wait for receive buffer to be clear (i.e. wait for the console command to be read)
+   //FlushReceiveBuffer();
    UCSR0C =  (1<<UCSZ00);
 }
 
 inline void GCComm::SetFrameSize8() // changes UART frame size to 8 (after receiving sending a controller message - this is the default frame size for receiving data from the console)
 {
+   FlushReceiveBuffer();
    while (!(UCSR0A & (1<<TXC0))); // wait for transmit buffer to be clear (i.e. wait for the controller message to be sent)
    UCSR0C =  (1<<UCSZ00) | (1<<UCSZ01);
 }
