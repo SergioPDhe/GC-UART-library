@@ -2,7 +2,7 @@
 GCN protocol guides:
   https://simplecontrollers.bigcartel.com/gamecube-protocol
   http://www.int03.co.uk/crema/hardware/gamecube/gc-control.html
- */
+*/
 #include "GC_COMM.h"
 
 
@@ -19,6 +19,7 @@ GCComm::GCComm()
 void GCComm::InitDataLine() // pin activation must happen during setup
 {
   UCSR0B = (1<<RXEN0)|(1<<TXEN0); // activate RX and TX pins
+  UDR0 = 0;
 }
 
 
@@ -87,6 +88,7 @@ void GCComm::SendInputs() // sends inputs to console
 void GCComm::ReceiveCommand()
 {
   uint8_t command = ReceiveByte();
+  PORTB |= (1<<5);
 
   switch (command)
   {
@@ -95,19 +97,19 @@ void GCComm::ReceiveCommand()
       SetRumble(ReceiveByte()&0b00000011); // get last 2 bits of 3rd command to check for rumble
       FlushReceiveBuffer();
       SendInputs();
-      PORTB |= (1<<2);
+      //PORTB |= (1<<2);
       break;
       
     case 0x00:
       FlushReceiveBuffer();
       SendPollResponse();
-      PORTB |= (1<<4);
+      //PORTB |= (1<<4);
       break;
       
     case 0x41:
       FlushReceiveBuffer();
       SendOrigin();
-      PORTB |= (1<<3);
+      //PORTB |= (1<<3);
       break;
       
   }
@@ -131,6 +133,8 @@ inline void GCComm::SendByte(uint8_t dataByte) // Sends a full GC byte to the co
   SendPair(second);
   SendPair(third);
   SendPair(last);
+
+  UCSR0A |= (1<<TXC0);
 }
 
 inline uint8_t GCComm::ReceiveByte() // Receives 1 full GC byte as 4 UART bytes (REQUIRES 8-BIT FRAME)
@@ -152,14 +156,17 @@ inline uint8_t GCComm::ReceiveByte() // Receives 1 full GC byte as 4 UART bytes 
 
 inline void GCComm::SendPair(uint8_t sent)  // sends UART Byte via TX (SHOULD USE 6-BIT FRAME)
 {
+  //PORTB = (1<<3);
   while (!(UCSR0A & (1<<UDRE0))); //wait for TX buffer to be ready to send data
   UDR0 = sent;  // send data
-  UCSR0A |= (1 << TXC0);          // write 1 to TXC0 to clear it
+  //PORTB = 0;
 }
 
 inline uint8_t GCComm::ReceivePair()  // receives UART byte via RX (SHOULD USE 8-BIT FRAME)
 {
+  //PORTB = (1<<2);
   while (!(UCSR0A & (1<<RXC0)));  // wait for data to be received
+  //PORTB = 0;
   return UDR0;  // read data
 }
 
@@ -199,23 +206,29 @@ inline void GCComm::SendStopBit()
 
 inline void GCComm::FlushReceiveBuffer() // clear receiver buffer before changing frame size or awaiting new messages from the console
 {
+  PORTB = (1<<4);
   while (!(UCSR0A & (1<<TXC0)));
   uint8_t dummy;
   while(UCSR0A & (1<<RXC0)) dummy = UDR0; // read data until no more data is in the buffer
+  PORTB = 0;
 }
 
 inline void GCComm::SetFrameSize6() // changes UART frame size to 6 (after receiving a console command and before sending a controller message)
 {
+   PORTB = (1<<2);
    //while (UCSR0A & (1<<RXC0)); // wait for receive buffer to be clear (i.e. wait for the console command to be read)
-   //FlushReceiveBuffer();
+   FlushReceiveBuffer();
    UCSR0C =  (1<<UCSZ00);
+   PORTB = 0;
 }
 
 inline void GCComm::SetFrameSize8() // changes UART frame size to 8 (after receiving sending a controller message - this is the default frame size for receiving data from the console)
 {
    FlushReceiveBuffer();
+   PORTB = (1<<3);
    while (!(UCSR0A & (1<<TXC0))); // wait for transmit buffer to be clear (i.e. wait for the controller message to be sent)
    UCSR0C =  (1<<UCSZ00) | (1<<UCSZ01);
+   PORTB = (0);
 }
 
 inline void GCComm::SetRumble(uint8_t command)
