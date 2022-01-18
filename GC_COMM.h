@@ -3,6 +3,52 @@
 
 #include "Arduino.h"
 
+#ifdef UCSR1A // if Serial '1" registers are defined (e.g. Arduino Mega2560, Lenoardo, ATMega2560, ATMega32U4)
+
+// if defined
+// register names
+# define BAUD_HIGH UBRR1H
+# define BAUD_LOW UBRR1L
+# define UART_CTRL_A UCSR1A
+# define UART_CTRL_B UCSR1B
+# define UART_CTRL_C UCSR1C
+# define UART_DATA UDR1
+// bit names
+# define RX_COMPLETE RXC1
+# define TX_COMPLETE TXC1
+# define TX_READY UDRE1
+# define UART_DOUBLE U2X1
+# define RX_ENABLE RXEN1
+# define TX_ENABLE TXEN1
+# define WORD_SIZE0 UCSZ10
+# define WORD_SIZE1 UCSZ11
+
+#else // if Serial1 doesn't exist:
+
+# ifdef UCSR0A // if Serial "0" registers are defined (e.g. Arduino uno, ATMega328p)
+
+#   define BAUD_HIGH UBRR0H
+#   define BAUD_LOW UBRR0L
+#   define UART_CTRL_A UCSR0A
+#   define UART_CTRL_B UCSR0B
+#   define UART_CTRL_C UCSR0C
+#   define UART_DATA UDR0
+
+#   define RX_COMPLETE RXC0
+#   define TX_COMPLETE TXC0
+#   define TX_READY UDRE0
+#   define UART_DOUBLE U2X0
+#   define RX_ENABLE RXEN0
+#   define TX_ENABLE TXEN0
+#   define WORD_SIZE0 UCSZ00
+#   define WORD_SIZE1 UCSZ01
+
+# else
+#   error "Current board not supported!" // if Serial 0 and 1 are not defined
+# endif
+
+#endif
+
 class GCComm
 {
   public:

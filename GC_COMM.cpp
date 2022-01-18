@@ -8,18 +8,18 @@ GCN protocol guides:
 
 GCComm::GCComm()
 {
-  UBRR0H =  (uint8_t)0; // 
-  UBRR0L =  (uint8_t)1; //// Sets baud rate to 1M (see datasheet)
-  UCSR0A |= (1<<U2X0);  //
+  BAUD_HIGH =  (uint8_t)0; // 
+  BAUD_LOW =  (uint8_t)1; //// Sets baud rate to 1M (see datasheet)
+  UART_CTRL_A |= (1<<UART_DOUBLE);  //
   
-  UCSR0C =  (1<<UCSZ00)|(1<<UCSZ01); // change frame size to 8 bits, no parity, 1 stop bit (default value for reading GC commands)
+  UART_CTRL_C =  (1<<WORD_SIZE0)|(1<<WORD_SIZE1); // change frame size to 8 bits, no parity, 1 stop bit (default value for reading GC commands)
 }
 
 
 void GCComm::InitDataLine() // pin activation must happen during setup
 {
-  UCSR0B = (1<<RXEN0)|(1<<TXEN0); // activate RX and TX pins
-  UDR0 = 0;
+  UART_CTRL_B = (1<<RX_ENABLE)|(1<<TX_ENABLE); // activate RX and TX pins
+  UART_DATA = 0; // writes an arbitrary byte to UART to set TX_COMPLETE bit (needed for check in flushing function)
 }
 
 
@@ -134,7 +134,7 @@ inline void GCComm::SendByte(uint8_t dataByte) // Sends a full GC byte to the co
   SendPair(third);
   SendPair(last);
 
-  UCSR0A |= (1<<TXC0);
+  UART_CTRL_A |= (1<<TX_COMPLETE);
 }
 
 inline uint8_t GCComm::ReceiveByte() // Receives 1 full GC byte as 4 UART bytes (REQUIRES 8-BIT FRAME)
@@ -157,17 +157,17 @@ inline uint8_t GCComm::ReceiveByte() // Receives 1 full GC byte as 4 UART bytes 
 inline void GCComm::SendPair(uint8_t sent)  // sends UART Byte via TX (SHOULD USE 6-BIT FRAME)
 {
   //PORTB = (1<<3);
-  while (!(UCSR0A & (1<<UDRE0))); //wait for TX buffer to be ready to send data
-  UDR0 = sent;  // send data
+  while (!(UART_CTRL_A & (1<<TX_READY))); //wait for TX buffer to be ready to send data
+  UART_DATA = sent;  // send data
   //PORTB = 0;
 }
 
 inline uint8_t GCComm::ReceivePair()  // receives UART byte via RX (SHOULD USE 8-BIT FRAME)
 {
   //PORTB = (1<<2);
-  while (!(UCSR0A & (1<<RXC0)));  // wait for data to be received
+  while (!(UART_CTRL_A & (1<<RX_COMPLETE)));  // wait for data to be received
   //PORTB = 0;
-  return UDR0;  // read data
+  return UART_DATA;  // read data
 }
 
 inline uint8_t GCComm::Byte2GC(uint8_t dataByte) // translates 2 GC bits into one UART byte (SHOULD USE 6-BIT FRAME)
@@ -207,18 +207,18 @@ inline void GCComm::SendStopBit()
 inline void GCComm::FlushReceiveBuffer() // clear receiver buffer before changing frame size or awaiting new messages from the console
 {
   PORTB = (1<<4);
-  while (!(UCSR0A & (1<<TXC0)));
+  while (!(UART_CTRL_A & (1<<TX_COMPLETE)));
   uint8_t dummy;
-  while(UCSR0A & (1<<RXC0)) dummy = UDR0; // read data until no more data is in the buffer
+  while(UART_CTRL_A & (1<<RX_COMPLETE)) dummy = UART_DATA; // read data until no more data is in the buffer
   PORTB = 0;
 }
 
 inline void GCComm::SetFrameSize6() // changes UART frame size to 6 (after receiving a console command and before sending a controller message)
 {
    PORTB = (1<<2);
-   //while (UCSR0A & (1<<RXC0)); // wait for receive buffer to be clear (i.e. wait for the console command to be read)
+   //while (UART_CTRL_A & (1<<RX_COMPLETE)); // wait for receive buffer to be clear (i.e. wait for the console command to be read)
    FlushReceiveBuffer();
-   UCSR0C =  (1<<UCSZ00);
+   UART_CTRL_C =  (1<<WORD_SIZE0);
    PORTB = 0;
 }
 
@@ -226,8 +226,8 @@ inline void GCComm::SetFrameSize8() // changes UART frame size to 8 (after recei
 {
    FlushReceiveBuffer();
    PORTB = (1<<3);
-   while (!(UCSR0A & (1<<TXC0))); // wait for transmit buffer to be clear (i.e. wait for the controller message to be sent)
-   UCSR0C =  (1<<UCSZ00) | (1<<UCSZ01);
+   while (!(UART_CTRL_A & (1<<TX_COMPLETE))); // wait for transmit buffer to be clear (i.e. wait for the controller message to be sent)
+   UART_CTRL_C =  (1<<WORD_SIZE0) | (1<<WORD_SIZE1);
    PORTB = (0);
 }
 
