@@ -55,7 +55,7 @@ class GCComm
     GCComm(); // sets up serial port
     void SendPollResponse();
     void SendOrigin();
-    void SendInputs(); // sends
+    inline void SendInputs(); // sends
     void InitDataLine();
     void ReceiveCommand();
 
@@ -73,6 +73,7 @@ class GCComm
   private:
     inline void SendByte(uint8_t dataByte);
     inline uint8_t ReceiveByte();
+    inline uint8_t ReceiveRumbleByte();
     inline void SendPair(uint8_t sent);
     inline uint8_t ReceivePair();
     inline uint8_t Byte2GC(uint8_t dataByte);
