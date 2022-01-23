@@ -13,15 +13,20 @@
 # define UART_CTRL_B UCSR1B
 # define UART_CTRL_C UCSR1C
 # define UART_DATA UDR1
+# define EXT_INT_CTRL EICRA
+# define EXT_INT_MASK EIMSK
 // bit names
 # define RX_COMPLETE RXC1
 # define TX_COMPLETE TXC1
 # define TX_READY UDRE1
+# define RX_INTERRUPT INT0
 # define UART_DOUBLE U2X1
 # define RX_ENABLE RXEN1
 # define TX_ENABLE TXEN1
 # define WORD_SIZE0 UCSZ10
 # define WORD_SIZE1 UCSZ11
+# define INTERRUPT0 ISC00
+# define INTERRUPT1 ISC01
 
 #else // if Serial1 doesn't exist:
 
@@ -33,15 +38,20 @@
 #   define UART_CTRL_B UCSR0B
 #   define UART_CTRL_C UCSR0C
 #   define UART_DATA UDR0
+#   define EXT_INT_CTRL EICRA
+#   define EXT_INT_MASK EIMSK
 
 #   define RX_COMPLETE RXC0
 #   define TX_COMPLETE TXC0
 #   define TX_READY UDRE0
+#   define RX_INTERRUPT INT0
 #   define UART_DOUBLE U2X0
 #   define RX_ENABLE RXEN0
 #   define TX_ENABLE TXEN0
 #   define WORD_SIZE0 UCSZ00
 #   define WORD_SIZE1 UCSZ01
+#   define INTERRUPT0 ISC00
+#   define INTERRUPT1 ISC01
 
 # else
 #   error "Current board not supported!" // if Serial 0 and 1 are not defined

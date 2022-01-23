@@ -20,6 +20,10 @@ void GCComm::InitDataLine() // pin activation must happen during setup
 {
   UART_CTRL_B = (1<<RX_ENABLE)|(1<<TX_ENABLE); // activate RX and TX pins
   UART_DATA = 0; // writes an arbitrary byte to UART to set TX_COMPLETE bit (needed for check in flushing function)
+
+  EXT_INT_CTRL |= (1<<INTERRUPT1);
+  EXT_INT_CTRL &= !(1<<INTERRUPT0);
+  EXT_INT_MASK |= (1<<INT0);
 }
 
 
@@ -42,7 +46,7 @@ void GCComm::SendOrigin() // responds to console poll for origin (See GCN commun
   SetFrameSize6();  // sets UART frame size to 6 (see function for details)
   
   SendByte((uint8_t)0x00);     // Sends Start, Y, X, B, A and some overhead stuff, format is usually [0,0,0,St,Y,X,B,A]
-  SendByte((uint8_t)0x80);     // Sends L, R, Z and Dpad inputs, format is usually [0,0,0,St,Y,X,B,A]
+  SendByte((uint8_t)0x80);     // Sends L, R, Z and Dpad inputs, format is usually [1,L,R,Z,Dup,Ddown,Dright,Dleft]
   
   SendByte((uint8_t)128);      // control stick inputs
   SendByte((uint8_t)128);
@@ -88,7 +92,7 @@ void GCComm::SendInputs() // sends inputs to console
 void GCComm::ReceiveCommand()
 {
   uint8_t command = ReceiveByte();
-  PORTB |= (1<<5);
+  //PORTB |= (1<<5);
 
   switch (command)
   {
@@ -165,14 +169,6 @@ inline uint8_t GCComm::ReceiveRumbleByte() // Receives 1 full GC byte as 4 UART 
   ReceivePair();
   ReceivePair();
   SetRumble(GC2Byte(ReceivePair()));
-/*
-  first = GC2Byte(first);   //convert UART bytes into GC bits
-  second = GC2Byte(second);
-  third = GC2Byte(third);
-  last = GC2Byte(last);
-
-  return (first << 6) | (second << 4) | (third << 2) | (last); // return GC byte
-  */
 }
 
 inline void GCComm::SendPair(uint8_t sent)  // sends UART Byte via TX (SHOULD USE 6-BIT FRAME)
@@ -227,11 +223,11 @@ inline void GCComm::SendStopBit()
 
 inline void GCComm::FlushReceiveBuffer() // clear receiver buffer before changing frame size or awaiting new messages from the console
 {
-  PORTB = (1<<4);
+  //PORTB = (1<<4);
   while (!(UART_CTRL_A & (1<<TX_COMPLETE)));
   uint8_t dummy;
   while(UART_CTRL_A & (1<<RX_COMPLETE)) dummy = UART_DATA; // read data until no more data is in the buffer
-  PORTB = 0;
+  //PORTB = 0;
 }
 
 inline void GCComm::SetFrameSize6() // changes UART frame size to 6 (after receiving a console command and before sending a controller message)
@@ -246,10 +242,10 @@ inline void GCComm::SetFrameSize6() // changes UART frame size to 6 (after recei
 inline void GCComm::SetFrameSize8() // changes UART frame size to 8 (after receiving sending a controller message - this is the default frame size for receiving data from the console)
 {
    FlushReceiveBuffer();
-   PORTB = (1<<3);
+   //PORTB = (1<<3);
    while (!(UART_CTRL_A & (1<<TX_COMPLETE))); // wait for transmit buffer to be clear (i.e. wait for the controller message to be sent)
    UART_CTRL_C =  (1<<WORD_SIZE0) | (1<<WORD_SIZE1);
-   PORTB = (0);
+   //PORTB = (0);
 }
 
 inline void GCComm::SetRumble(uint8_t command)
