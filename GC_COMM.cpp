@@ -5,7 +5,7 @@ GCN protocol guides:
 */
 #include "GC_COMM.h"
 
-
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 GCComm::GCComm()
 {
   BAUD_HIGH =  (uint8_t)0; // 
@@ -15,7 +15,7 @@ GCComm::GCComm()
   UART_CTRL_C =  (1<<WORD_SIZE0)|(1<<WORD_SIZE1); // change frame size to 8 bits, no parity, 1 stop bit (default value for reading GC commands)
 }
 
-
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void GCComm::InitDataLine() // pin activation must happen during setup
 {
   UART_CTRL_B = (1<<RX_ENABLE)|(1<<TX_ENABLE); // activate RX and TX pins
@@ -26,8 +26,35 @@ void GCComm::InitDataLine() // pin activation must happen during setup
   EXT_INT_MASK |= (1<<INT0);
 }
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void GCComm::ReceiveCommand()
+{
+  uint8_t command = ReceiveByte();
+  //PORTB |= (1<<5);
 
+  switch (command)
+  {
+    case 0x40:
+      ReceiveByte();                      // get second command out of the way
+      ReceiveRumbleByte(); // get last 2 bits of 3rd command to check for rumble
+      SendInputs();
+      break;
+      
+    case 0x00:
+      FlushReceiveBuffer();
+      SendPollResponse();
+      break;
+      
+    case 0x41:
+      FlushReceiveBuffer();
+      SendOrigin();
+      break;
+      
+  }
+  FlushReceiveBuffer();
+}
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void GCComm::SendPollResponse() // responds to console poll to check if a controller is plugged in (See GCN communication protocol guides)
 {
   SetFrameSize6(); // sets UART frame size to 6 (see function for details)
@@ -40,7 +67,7 @@ void GCComm::SendPollResponse() // responds to console poll to check if a contro
   SetFrameSize8(); // flushes buffer and sets UART frame back to 8 (see function for details)
 }
 
-
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void GCComm::SendOrigin() // responds to console poll for origin (See GCN communication protocol guides)
 {
   SetFrameSize6();  // sets UART frame size to 6 (see function for details)
@@ -66,7 +93,7 @@ void GCComm::SendOrigin() // responds to console poll for origin (See GCN commun
   SetFrameSize8(); // sets UART frame back to 8 (see function for details)
 }
 
-
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void GCComm::SendInputs() // sends inputs to console
 {
   SetFrameSize6();
@@ -82,6 +109,7 @@ void GCComm::SendInputs() // sends inputs to console
   
   SendByte(AnalogL);  // analog L and R inputs
   SendByte(AnalogR);
+  
   SendStopBit();      // stop bit
 
   FlushReceiveBuffer(); // empties RX buffer
@@ -89,61 +117,20 @@ void GCComm::SendInputs() // sends inputs to console
   SetFrameSize8(); // sets UART frame back to 8 (see function for details)
 }
 
-void GCComm::ReceiveCommand()
-{
-  uint8_t command = ReceiveByte();
-  //PORTB |= (1<<5);
 
-  switch (command)
-  {
-    case 0x40:
-      ReceiveByte();                      // get second command out of the way
-      ReceiveRumbleByte(); // get last 2 bits of 3rd command to check for rumble
-      //FlushReceiveBuffer();
-      SendInputs();
-      //PORTB |= (1<<2);
-      break;
-      
-    case 0x00:
-      FlushReceiveBuffer();
-      SendPollResponse();
-      //PORTB |= (1<<4);
-      break;
-      
-    case 0x41:
-      FlushReceiveBuffer();
-      SendOrigin();
-      //PORTB |= (1<<3);
-      break;
-      
-  }
-  FlushReceiveBuffer();
-}
-
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 inline void GCComm::SendByte(uint8_t dataByte) // Sends a full GC byte to the console in pairs of GC bits using 4 UART bytes (REQUIRES 6-BIT FRAME)
 {
-  //uint8_t first, second, third, last;     // split the byte into 4 pairs of bits (possible values are 00=0, 01=1, 10=2, 11=3)
-  /*
-  first =   (dataByte & 0b11000000) >> 6;
-  second =  (dataByte & 0b00110000) >> 4;
-  third =   (dataByte & 0b00001100) >> 2;
-  last =    (dataByte & 0b00000011);
-  */
-
-/*
-  first = Byte2GC(first);     // convert each pair to a corresponding byte sent by UART
-  second = Byte2GC(second);
-  third = Byte2GC(third);
-  last = Byte2GC(last);
-*/
-  SendPair(Byte2GC((dataByte & 0b11000000) >> 6));      // send data
-  SendPair(Byte2GC((dataByte & 0b00110000) >> 4));
+  SendPair(Byte2GC((dataByte & 0b11000000) >> 6));      //splits byte into pairs, converts them to UART bytes and sends them
+  SendPair(Byte2GC((dataByte & 0b00110000) >> 4));     
   SendPair(Byte2GC((dataByte & 0b00001100) >> 2));
   SendPair(Byte2GC(dataByte & 0b00000011));
 
-  UART_CTRL_A |= (1<<TX_COMPLETE);
+  UART_CTRL_A |= (1<<TX_COMPLETE); // clear TX_COMPLETE bit by writing a 1 to it (see TXCn in AVR datasheet)
 }
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 inline uint8_t GCComm::ReceiveByte() // Receives 1 full GC byte as 4 UART bytes (REQUIRES 8-BIT FRAME)
 {
   uint8_t first, second, third, last;
@@ -161,6 +148,8 @@ inline uint8_t GCComm::ReceiveByte() // Receives 1 full GC byte as 4 UART bytes 
   return (first << 6) | (second << 4) | (third << 2) | (last); // return GC byte
 }
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 inline uint8_t GCComm::ReceiveRumbleByte() // Receives 1 full GC byte as 4 UART bytes (REQUIRES 8-BIT FRAME)
 {
   //uint8_t first, second, third, last;
@@ -171,6 +160,8 @@ inline uint8_t GCComm::ReceiveRumbleByte() // Receives 1 full GC byte as 4 UART 
   SetRumble(GC2Byte(ReceivePair()));
 }
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 inline void GCComm::SendPair(uint8_t sent)  // sends UART Byte via TX (SHOULD USE 6-BIT FRAME)
 {
   //PORTB = (1<<3);
@@ -179,6 +170,8 @@ inline void GCComm::SendPair(uint8_t sent)  // sends UART Byte via TX (SHOULD US
   //PORTB = 0;
 }
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 inline uint8_t GCComm::ReceivePair()  // receives UART byte via RX (SHOULD USE 8-BIT FRAME)
 {
   //PORTB = (1<<2);
@@ -250,6 +243,6 @@ inline void GCComm::SetFrameSize8() // changes UART frame size to 8 (after recei
 
 inline void GCComm::SetRumble(uint8_t command)
 {
-  rumble = false;
-  if (command = 4) rumble = true;
+  rumble = command;
+  //if (command == 1) rumble = true;
 }

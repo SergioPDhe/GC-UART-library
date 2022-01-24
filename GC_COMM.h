@@ -15,6 +15,7 @@
 # define UART_DATA UDR1
 # define EXT_INT_CTRL EICRA
 # define EXT_INT_MASK EIMSK
+# define RX_INT_VECTOR INT0_vect
 // bit names
 # define RX_COMPLETE RXC1
 # define TX_COMPLETE TXC1
@@ -40,6 +41,7 @@
 #   define UART_DATA UDR0
 #   define EXT_INT_CTRL EICRA
 #   define EXT_INT_MASK EIMSK
+#   define RX_INT_VECTOR INT0_vect
 
 #   define RX_COMPLETE RXC0
 #   define TX_COMPLETE TXC0
@@ -78,7 +80,7 @@ class GCComm
     volatile uint8_t  AnalogL =   0;
     volatile uint8_t  AnalogR =   0;
     
-    volatile bool     rumble =    false;
+    volatile uint8_t     rumble =    0;
     
   private:
     inline void SendByte(uint8_t dataByte);
